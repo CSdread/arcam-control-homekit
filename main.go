@@ -1,15 +1,66 @@
 package main
 
 import (
-	"fmt"
-	"github.com/brutella/hc/accessory"
+	"context"
+	syslog "log"
+	"os"
+
+	"github.com/brutella/hap"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/log"
+
+	"os/signal"
+	"syscall"
+	"flag"
 )
 
+type Config struct {
+	Model string
+}
+
+
+
+func validateModel(Model string) bool {
+	return true
+}
+
 func main() {
-	fmt.Println("hello")
-	info := accessory.Info{
-		Name: "AVR11",
+  var model *string = flag.String("model", "", "Receiver model name (eg AVR11)")
+	validateModel(*model)
+
+	cfg := Config{
+		Model: *model,
 	}
 
-	fmt.Println(info)
+	bridge := accessory.NewBridge(accessory.Info{
+		Name: "ARCAM Receiver Bridge",
+		SerialNumber: "",
+		Model: cfg.Model,
+		Manufacturer: "",
+		Firmware: "",
+  })
+
+
+
+
+  s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A)
+	if err != nil {
+		log.Info.Panic(err)
+	}
+
+	logger := syslog.New(os.Stdout, "ARCAM ", syslog.LstdFlags|syslog.Lshortfile)
+	log.Debug = &log.Logger{logger}
+
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-c
+		signal.Stop(c)
+		cancel()
+	}()
+
+	s.ListenAndServe(ctx)
 }
