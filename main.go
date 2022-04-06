@@ -9,23 +9,21 @@ import (
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/log"
 
+	"flag"
 	"os/signal"
 	"syscall"
-	"flag"
 )
 
 type Config struct {
 	Model string
 }
 
-
-
 func validateModel(Model string) bool {
 	return true
 }
 
 func main() {
-  var model *string = flag.String("model", "", "Receiver model name (eg AVR11)")
+	var model *string = flag.String("model", "", "Receiver model name (eg AVR11)")
 	validateModel(*model)
 
 	cfg := Config{
@@ -33,17 +31,14 @@ func main() {
 	}
 
 	bridge := accessory.NewBridge(accessory.Info{
-		Name: "ARCAM Receiver Bridge",
+		Name:         "ARCAM Receiver Bridge",
 		SerialNumber: "",
-		Model: cfg.Model,
+		Model:        cfg.Model,
 		Manufacturer: "",
-		Firmware: "",
-  })
+		Firmware:     "",
+	})
 
-
-
-
-  s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A)
+	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A)
 	if err != nil {
 		log.Info.Panic(err)
 	}

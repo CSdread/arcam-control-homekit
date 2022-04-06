@@ -5,9 +5,7 @@ const (
 	TransmissionEnd   = 0x0D
 )
 
-type ZoneNumber int
-
-var RecieverModels = map[string]interface{}{
+var ReceiverModels = map[string]interface{}{
 	"AVR5":  struct{}{},
 	"AVR10": struct{}{},
 	"AVR11": struct{}{},
@@ -19,12 +17,14 @@ var RecieverModels = map[string]interface{}{
 	"AVR41": struct{}{},
 }
 
+type ZoneNumber byte
+
 const (
 	ZoneOne ZoneNumber = 1
 	ZoneTwo            = 2
 )
 
-type Command int64
+type Command byte
 
 const (
 	// System Commands
@@ -97,8 +97,8 @@ const (
 )
 
 type AVRC5CommandCode struct {
-	Data1 int64
-	Data2 int64
+	Data1 byte
+	Data2 byte
 }
 
 var (
@@ -151,6 +151,14 @@ var (
 	Sat                              = AVRC5CommandCode{0x10, 0x1B}
 	PVR                              = AVRC5CommandCode{0x10, 0x60}
 	Game                             = AVRC5CommandCode{0x10, 0x61}
+	BD                               = AVRC5CommandCode{0x10, 0x62}
+	CD                               = AVRC5CommandCode{0x10, 0x76}
+	STB                              = AVRC5CommandCode{0x10, 0x64}
+	UHD                              = AVRC5CommandCode{0x10, 0x7D}
+	BT                               = AVRC5CommandCode{0x10, 0x7A}
+	Display                          = AVRC5CommandCode{0x10, 0x3A}
+	PowerOn                          = AVRC5CommandCode{0x10, 0x7B}
+	PowerOff                         = AVRC5CommandCode{0x10, 0x7C}
 	ChangeControlToNextZone          = AVRC5CommandCode{0x10, 0x5F}
 	AccessBassControl                = AVRC5CommandCode{0x10, 0x27}
 	AccessSpeakerTrimControl         = AVRC5CommandCode{0x10, 0x25}
@@ -216,7 +224,26 @@ var (
 	SelectHDMIOut1And2               = AVRC5CommandCode{0x17, 0x4B}
 )
 
-type Answer int64
+type InputSource byte
+
+const (
+	InputCD       InputSource = 0x01
+	InputBD                   = 0x02
+	InputAV                   = 0x03
+	InputSAT                  = 0x04
+	InputPVR                  = 0x05
+	InputUHD                  = 0x06
+	InputAUX                  = 0x08
+	InputDISPLAY              = 0x09
+	InputTUNERFM              = 0x0B
+	InputTUNERDAB             = 0x0C
+	InputNET                  = 0x0E
+	InputSTB                  = 0x10
+	InputGAME                 = 0x11
+	InputBT                   = 0x12
+)
+
+type Answer byte
 
 const (
 	StatusUpdate             Answer = 0x00
@@ -231,11 +258,11 @@ type Response struct {
 	Zone        ZoneNumber
 	CommandCode Command
 	AnswerCode  Answer
-	Data        []string
+	Data        []byte
 }
 
-type Transmission struct {
+type Request struct {
 	Zone    ZoneNumber
-	Command string
-	Data    []string
+	Command Command
+	Data    []byte
 }
