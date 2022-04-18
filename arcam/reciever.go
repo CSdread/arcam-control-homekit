@@ -23,14 +23,24 @@ func NewReceiver(model string, ipAddress string, port int) (Receiver, error) {
 	}, nil
 }
 
-func (r *Receiver) isOn(ctx context.Context) (bool, error) {
+func (r *Receiver) Connect(ctx context.Context) error {
+	fmt.Println("connecting to receiver")
+	return r.client.connect(ctx)
+}
+
+func (r *Receiver) IsOn(ctx context.Context) (bool, error) {
 	req := Request{
 		Zone:    ZoneOne,
 		Command: PowerCommand,
 		Data:    []byte{0xF0},
 	}
 
-	resp, err := r.client.send(ctx, req)
+	err := r.client.send(req)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := r.client.read(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -51,7 +61,12 @@ func (r *Receiver) PowerOn(ctx context.Context) error {
 		Data:    []byte{PowerOn.Data1, PowerOn.Data2},
 	}
 
-	resp, err := r.client.send(ctx, req)
+	err := r.client.send(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.client.read(ctx)
 	if err != nil {
 		return err
 	}
@@ -69,10 +84,14 @@ func (r *Receiver) PowerOff(ctx context.Context) error {
 		Command: SimulateRC5IRCommand,
 		Data:    []byte{PowerOff.Data1, PowerOff.Data2},
 	}
-
-	resp, err := r.client.send(ctx, req)
+	err := r.client.send(req)
 	if err != nil {
 		return err
+	}
+
+	resp, err := r.client.read(ctx)
+	if err != nil {
+		fmt.Println(err)
 	}
 
 	if resp.AnswerCode != StatusUpdate {
@@ -81,6 +100,8 @@ func (r *Receiver) PowerOff(ctx context.Context) error {
 
 	return nil
 }
+
+/*
 
 func (r *Receiver) GetVolume(ctx context.Context) (int, error) {
 	req := Request{
@@ -152,7 +173,6 @@ func (r *Receiver) VolumeDown(ctx context.Context) error {
 
 	return r.SetVolume(ctx, currentVol-1)
 }
-
 func (r *Receiver) IsMuted(ctx context.Context) (bool, error) {
 	req := Request{
 		Zone:    ZoneOne,
@@ -300,3 +320,4 @@ func (r *Receiver) SetSource(ctx context.Context, source InputSource) error {
 
 	return nil
 }
+*/

@@ -1,8 +1,8 @@
 package arcam
 
 const (
-	TransmissionStart = 0x21
-	TransmissionEnd   = 0x0D
+	TransmissionStart byte = 0x21
+	TransmissionEnd   byte = 0x0D
 )
 
 var ReceiverModels = map[string]interface{}{
@@ -35,6 +35,7 @@ const (
 	SoftwareVersion
 	RestoreFactoryDefaultSettings
 	SaveRestoreSecureCopyOfSettings
+	DoNotUse
 	SimulateRC5IRCommand
 	DisplayInformationType
 	RequestCurrentSource
