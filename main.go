@@ -9,10 +9,12 @@ import (
 
 	"github.com/brutella/hap"
 	"github.com/brutella/hap/log"
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
+
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
 
 	"flag"
+	syslog "log"
 	"os/signal"
 	"syscall"
 )
@@ -21,6 +23,7 @@ type Config struct {
 	Model string
 	IP    string
 	Port  int
+	Pin   string
 }
 
 func validateModel(Model string) bool {
@@ -29,8 +32,9 @@ func validateModel(Model string) bool {
 
 func main() {
 	model := flag.String("model", "", "Receiver model name (eg AVR11)")
-	ipAddress := flag.String("ip", "", "")
-	port := flag.Int("port", 50000, "")
+	ipAddress := flag.String("ip", "", "IP Address of Receiver")
+	port := flag.Int("port", 50001, "Port to communicate with receiver")
+	pin := flag.String("pin", "00102003", "Homekit pairing pin")
 
 	flag.Parse()
 
@@ -40,6 +44,7 @@ func main() {
 		Model: *model,
 		IP:    *ipAddress,
 		Port:  *port,
+		Pin:   *pin,
 	}
 
 	arcamClient, err := arcam.NewReceiver(cfg.Model, cfg.IP, cfg.Port)
@@ -57,6 +62,7 @@ func main() {
 		signal.Stop(c)
 		cancel()
 	}()
+
 	err = arcamClient.Connect(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -65,10 +71,8 @@ func main() {
 
 	bridge := accessory.NewBridge(accessory.Info{
 		Name:         "ARCAM Receiver Bridge",
-		SerialNumber: "",
-		Model:        "",
-		Manufacturer: "",
-		Firmware:     "",
+		Model:        "ARCAM Receiver Bridge",
+		Manufacturer: "CSdread",
 	})
 
 	tv := accessory.NewTelevision(accessory.Info{
@@ -76,8 +80,16 @@ func main() {
 		SerialNumber: "",
 		Model:        cfg.Model,
 		Manufacturer: "Arcam",
-		Firmware:     "",
 	})
+
+	isOn, err := arcamClient.IsOn(ctx)
+	active := characteristic.ActiveInactive
+	if isOn {
+		active = characteristic.ActiveActive
+	}
+
+	tv.Television.Active.SetValue(active)
+
 	tv.Television.Active.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
 		if newVal == characteristic.ActiveActive {
 			err := arcamClient.PowerOn(ctx)
@@ -93,26 +105,18 @@ func main() {
 		}
 	})
 
-	volControl := characteristic.NewVolume()
-	volControl.SetMaxValue(99)
-	volControl.SetMinValue(0)
-	volControl.SetStepValue(1)
-	volControl.OnValueUpdate(func(newVol, oldVol int, r *http.Request) {
-		err := arcamClient.SetVolume(ctx, newVol)
-		if err != nil {
-			log.Info.Fatalln("")
-		}
-	})
-
-	tv.Speaker.AddC(volControl.C)
-
 	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A, tv.A)
 	if err != nil {
 		log.Info.Panic(err)
 	}
 
-	logger := syslog.New(os.Stdout, "ARCAM ", syslog.LstdFlags|syslog.Lshortfile)
-	log.Debug = &log.Logger{logger}
+	s.Pin = cfg.Pin
 
-	s.ListenAndServe(ctx)
+	mylogger := syslog.New(os.Stdout, "BLUB ", syslog.LstdFlags|syslog.Lshortfile)
+	log.Debug = &log.Logger{mylogger}
+
+	err = s.ListenAndServe(ctx)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
