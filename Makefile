@@ -1,4 +1,7 @@
 build:
+	go build
+
+build-linux:
 	GOOS=linux GOARCH=386 go build
 
 build-docker:
