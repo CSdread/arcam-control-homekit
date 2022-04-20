@@ -112,16 +112,21 @@ func main() {
 	for _, input := range arcamClient.GetAllInputs() {
 		inputSource := service.NewInputSource()
 
+		displayName := arcam.InputDisplayNameMap[input]
+		inputId := int(input)
+
 		id := characteristic.NewIdentifier()
-		id.SetValue(int(input))
+		id.SetValue(inputId)
 		inputSource.AddC(id.C)
 
-		inputSource.ConfiguredName.SetValue(arcam.InputDisplayNameMap[input])
+		inputSource.ConfiguredName.SetValue(displayName)
 		inputSource.IsConfigured.SetValue(characteristic.IsConfiguredConfigured)
 		inputSource.InputSourceType.SetValue(characteristic.InputSourceTypeHdmi)
 		inputSource.CurrentVisibilityState.SetValue(characteristic.CurrentVisibilityStateShown)
+		inputSource.ConfiguredName.Permissions = []string{characteristic.PermissionRead}
 
 		tv.Television.AddS(inputSource.S)
+		tv.A.AddS(inputSource.S)
 	}
 
 	source, err := arcamClient.GetSource(ctx)
@@ -132,13 +137,32 @@ func main() {
 	tv.Television.ActiveIdentifier.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
 		arcamClient.SetSource(ctx, arcam.InputSource(newVal))
 	})
-	/*
-		isMute, err := arcamClient.IsMuted(ctx)
-		tv.Speaker.Mute.SetValue(isMute)
-		tv.Speaker.Mute.OnValueUpdate(func(oldVal, newVal bool, r *http.Request) {
-			arcamClient.ToggleMute(ctx)
-		})
-	*/
+
+	tv.Television.AddS(tv.Speaker.S)
+
+	speakerActive := characteristic.NewActive()
+	speakerActive.SetValue(characteristic.ActiveActive)
+	tv.Speaker.AddC(speakerActive.C)
+
+	speakerVolControlType := characteristic.NewVolumeControlType()
+	speakerVolControlType.SetValue(characteristic.VolumeControlTypeAbsolute)
+	tv.Speaker.AddC(speakerVolControlType.C)
+
+	vol, err := arcamClient.GetVolume(ctx)
+
+	speakerVolume := characteristic.NewVolume()
+	speakerVolume.SetValue(vol)
+	speakerVolume.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
+		arcamClient.SetVolume(ctx, newVal)
+	})
+	tv.Speaker.AddC(speakerVolume.C)
+
+	isMute, err := arcamClient.IsMuted(ctx)
+	tv.Speaker.Mute.SetValue(isMute)
+	tv.Speaker.Mute.OnValueUpdate(func(oldVal, newVal bool, r *http.Request) {
+		arcamClient.ToggleMute(ctx)
+	})
+
 	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A, tv.A)
 	if err != nil {
 		log.Info.Panic(err)
@@ -147,7 +171,7 @@ func main() {
 	s.Pin = cfg.Pin
 	s.Addr = "[::]:33859"
 
-	mylogger := syslog.New(os.Stdout, "BLUB ", syslog.LstdFlags|syslog.Lshortfile)
+	mylogger := syslog.New(os.Stdout, "ARCAM-HOMEKIT", syslog.LstdFlags|syslog.Lshortfile)
 	log.Debug = &log.Logger{mylogger}
 
 	err = s.ListenAndServe(ctx)

@@ -34,8 +34,8 @@ const (
 	SoftwareVersion                         = 0x04
 	RestoreFactoryDefaultSettings           = 0x05
 	SaveRestoreSecureCopyOfSettings         = 0x06
-	SimulateRC5IRCommand                    = 0x07
-	DisplayInformationType                  = 0x08
+	SimulateRC5IRCommand                    = 0x08
+	DisplayInformationType                  = 0x09
 	RequestCurrentSource                    = 0x1D
 	HeadphoneOverride                       = 0x1F
 	SelectAnalogueDigital                   = 0x0B

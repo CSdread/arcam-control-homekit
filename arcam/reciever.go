@@ -252,7 +252,6 @@ func (r *Receiver) SetSource(ctx context.Context, source InputSource) error {
 	return nil
 }
 
-/*
 func (r *Receiver) GetVolume(ctx context.Context) (int, error) {
 	req := Request{
 		Zone:    ZoneOne,
@@ -260,7 +259,12 @@ func (r *Receiver) GetVolume(ctx context.Context) (int, error) {
 		Data:    []byte{0xF0},
 	}
 
-	resp, err := r.client.send(ctx, req)
+	err := r.client.send(req)
+	if err != nil {
+		return -1, err
+	}
+
+	resp, err := r.client.read(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -283,7 +287,12 @@ func (r *Receiver) SetVolume(ctx context.Context, newVolume int) error {
 		Data:    []byte{byte(newVolume)},
 	}
 
-	resp, err := r.client.send(ctx, req)
+	err := r.client.send(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.client.read(ctx)
 	if err != nil {
 		return err
 	}
@@ -299,6 +308,7 @@ func (r *Receiver) SetVolume(ctx context.Context, newVolume int) error {
 	return nil
 }
 
+/*
 func (r *Receiver) VolumeUp(ctx context.Context) error {
 	currentVol, err := r.GetVolume(ctx)
 	if err != nil {
