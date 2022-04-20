@@ -27,74 +27,68 @@ const (
 type Command byte
 
 const (
-	// System Commands
-	PowerCommand = iota
-	DisplayBirghtness
-	Headphones
-	FMGenre
-	SoftwareVersion
-	RestoreFactoryDefaultSettings
-	SaveRestoreSecureCopyOfSettings
-	DoNotUse
-	SimulateRC5IRCommand
-	DisplayInformationType
-	RequestCurrentSource
-	HeadphoneOverride
-	// Input Command
-	SelectAnalogueDigital
-	// Output Commands
-	SetRequestVolume
-	RequestMuteStatus
-	RequestDirectModeStatus
-	RequestDecodeModeStatus2ch
-	RequestDecodeModeStatusMCH
-	RequestRDSInfo
-	RequestVideoOutputResolution
-	// Menu Commands
-	RequestMenuStatus
-	RequestTunerPreset
-	Tune
-	RequestDABStation
-	ProgramTypeCategory
-	DLSPDTInfo
-	RequestPresetDetails
-	NetworkPlaybackStatus
-	IMAXEnhanced
-	// Setup Adjustment Commands
-	TrebleEqualisation
-	BassEqualisation
-	RoomEqualisation
-	DolbyAudio
-	Balance
-	SubwooferTrim
-	LipsyncDelay
-	Compression
-	RequestIncomingVideoParameters
-	RequestIncomingAudioFormat
-	RequestIncomingAudioSampleRate
-	SetRequestSubStereoTrim
-	SetRequestZone1OSDOnOff
-	SetRequestVideoOutputSwitching
-	SetRequestInputName
-	FMScanUpDown
-	DABScan
-	Heartbeat
-	Reboot
-	BluetoothStatus
-	Setup
-	RoomEQName
-	NowPlayingInfo
-	InputConfig
-	GeneralSetup
-	SpeakerTypes
-	SpeakerDistances
-	SpeakerLevels
-	VideoInputs
-	HDMISettings
-	ZoneSettings // not AVR5, AVR10
-	Network
-	Bluetooth
-	EngineeringMenu
+	PowerCommand                    Command = 0x00
+	DisplayBirghtness                       = 0x01
+	Headphones                              = 0x02
+	FMGenre                                 = 0x03
+	SoftwareVersion                         = 0x04
+	RestoreFactoryDefaultSettings           = 0x05
+	SaveRestoreSecureCopyOfSettings         = 0x06
+	SimulateRC5IRCommand                    = 0x07
+	DisplayInformationType                  = 0x08
+	RequestCurrentSource                    = 0x1D
+	HeadphoneOverride                       = 0x1F
+	SelectAnalogueDigital                   = 0x0B
+	SetRequestVolume                        = 0x0D
+	RequestMuteStatus                       = 0x0E
+	RequestDirectModeStatus                 = 0x0F
+	RequestDecodeModeStatus2ch              = 0x10
+	RequestDecodeModeStatusMCH              = 0x11
+	RequestRDSInfo                          = 0x12
+	RequestVideoOutputResolution            = 0x13
+	RequestMenuStatus                       = 0x14
+	RequestTunerPreset                      = 0x15
+	Tune                                    = 0x16
+	RequestDABStation                       = 0x18
+	ProgramTypeCategory                     = 0x19
+	DLSPDTInfo                              = 0x1A
+	RequestPresetDetails                    = 0x1B
+	NetworkPlaybackStatus                   = 0x1C
+	IMAXEnhanced                            = 0x0C
+	TrebleEqualisation                      = 0x35
+	BassEqualisation                        = 0x36
+	RoomEqualisation                        = 0x37
+	DolbyAudio                              = 0x38
+	Balance                                 = 0x3B
+	SubwooferTrim                           = 0x3F
+	LipsyncDelay                            = 0x40
+	Compression                             = 0x41
+	RequestIncomingVideoParameters          = 0x42
+	RequestIncomingAudioFormat              = 0x43
+	RequestIncomingAudioSampleRate          = 0x44
+	SetRequestSubStereoTrim                 = 0x45
+	SetRequestZone1OSDOnOff                 = 0x4E
+	SetRequestVideoOutputSwitching          = 0x4F
+	SetRequestInputName                     = 0x20
+	FMScanUpDown                            = 0x23
+	DABScan                                 = 0x24
+	Heartbeat                               = 0x25
+	Reboot                                  = 0x26
+	BluetoothStatus                         = 0x50
+	Setup                                   = 0x27
+	RoomEQName                              = 0x34
+	NowPlayingInfo                          = 0x64
+	InputConfig                             = 0x28
+	GeneralSetup                            = 0x29
+	SpeakerTypes                            = 0x2A
+	SpeakerDistances                        = 0x2B
+	SpeakerLevels                           = 0x2C
+	VideoInputs                             = 0x2D
+	HDMISettings                            = 0x2E
+	ZoneSettings                            = 0x2F // not  AVR5, AVR10
+	Network                                 = 0x30
+	Bluetooth                               = 0x32
+	EngineeringMenu                         = 0x33
 )
 
 type AVRC5CommandCode struct {

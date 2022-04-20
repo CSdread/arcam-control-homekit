@@ -9,6 +9,7 @@ import (
 
 	"github.com/brutella/hap"
 	"github.com/brutella/hap/log"
+	"github.com/brutella/hap/service"
 
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/characteristic"
@@ -105,12 +106,46 @@ func main() {
 		}
 	})
 
+	tv.Television.ConfiguredName.SetValue(fmt.Sprintf("Arcam %s Receiver", cfg.Model))
+	tv.Television.SleepDiscoveryMode.SetValue(characteristic.SleepDiscoveryModeAlwaysDiscoverable)
+
+	for _, input := range arcamClient.GetAllInputs() {
+		inputSource := service.NewInputSource()
+
+		id := characteristic.NewIdentifier()
+		id.SetValue(int(input))
+		inputSource.AddC(id.C)
+
+		inputSource.ConfiguredName.SetValue(arcam.InputDisplayNameMap[input])
+		inputSource.IsConfigured.SetValue(characteristic.IsConfiguredConfigured)
+		inputSource.InputSourceType.SetValue(characteristic.InputSourceTypeHdmi)
+		inputSource.CurrentVisibilityState.SetValue(characteristic.CurrentVisibilityStateShown)
+
+		tv.Television.AddS(inputSource.S)
+	}
+
+	source, err := arcamClient.GetSource(ctx)
+	if err != nil {
+		log.Info.Fatalln("")
+	}
+	tv.Television.ActiveIdentifier.SetValue(int(source))
+	tv.Television.ActiveIdentifier.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
+		arcamClient.SetSource(ctx, arcam.InputSource(newVal))
+	})
+	/*
+		isMute, err := arcamClient.IsMuted(ctx)
+		tv.Speaker.Mute.SetValue(isMute)
+		tv.Speaker.Mute.OnValueUpdate(func(oldVal, newVal bool, r *http.Request) {
+			arcamClient.ToggleMute(ctx)
+		})
+	*/
 	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A, tv.A)
 	if err != nil {
 		log.Info.Panic(err)
 	}
 
 	s.Pin = cfg.Pin
+	s.Addr = "[::]:33859"
 
 	mylogger := syslog.New(os.Stdout, "BLUB ", syslog.LstdFlags|syslog.Lshortfile)
 	log.Debug = &log.Logger{mylogger}
