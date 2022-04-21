@@ -4,7 +4,6 @@ import (
 	"arcam-controller/arcam"
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/brutella/hap"
@@ -21,10 +20,11 @@ import (
 )
 
 type Config struct {
-	Model string
-	IP    string
-	Port  int
-	Pin   string
+	Model      string
+	IP         string
+	Port       int
+	Pin        string
+	ListenPort int
 }
 
 func validateModel(Model string) bool {
@@ -36,16 +36,18 @@ func main() {
 	ipAddress := flag.String("ip", "", "IP Address of Receiver")
 	port := flag.Int("port", 50001, "Port to communicate with receiver")
 	pin := flag.String("pin", "00102003", "Homekit pairing pin")
+	listenPort := flag.Int("listen-port", 33859, "Port to listen for homekit")
 
 	flag.Parse()
 
 	validateModel(*model)
 
 	cfg := Config{
-		Model: *model,
-		IP:    *ipAddress,
-		Port:  *port,
-		Pin:   *pin,
+		Model:      *model,
+		IP:         *ipAddress,
+		Port:       *port,
+		Pin:        *pin,
+		ListenPort: *listenPort,
 	}
 
 	arcamClient, err := arcam.NewReceiver(cfg.Model, cfg.IP, cfg.Port)
@@ -90,53 +92,19 @@ func main() {
 	}
 
 	tv.Television.Active.SetValue(active)
+	tv.Television.Active.OnValueUpdate(powerOnCallback(ctx, &arcamClient))
 
-	tv.Television.Active.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
-		if newVal == characteristic.ActiveActive {
-			err := arcamClient.PowerOn(ctx)
-			if err != nil {
-				log.Info.Fatalln("")
-			}
-			return
-		}
-
-		err := arcamClient.PowerOff(ctx)
-		if err != nil {
-			log.Info.Fatalln("")
-		}
-	})
-
-	tv.Television.ConfiguredName.SetValue(fmt.Sprintf("Arcam %s Receiver", cfg.Model))
+	tv.Television.ConfiguredName.SetValue("Arcam Receiver")
 	tv.Television.SleepDiscoveryMode.SetValue(characteristic.SleepDiscoveryModeAlwaysDiscoverable)
 
-	for _, input := range arcamClient.GetAllInputs() {
-		inputSource := service.NewInputSource()
-
-		displayName := arcam.InputDisplayNameMap[input]
-		inputId := int(input)
-
-		id := characteristic.NewIdentifier()
-		id.SetValue(inputId)
-		inputSource.AddC(id.C)
-
-		inputSource.ConfiguredName.SetValue(displayName)
-		inputSource.IsConfigured.SetValue(characteristic.IsConfiguredConfigured)
-		inputSource.InputSourceType.SetValue(characteristic.InputSourceTypeHdmi)
-		inputSource.CurrentVisibilityState.SetValue(characteristic.CurrentVisibilityStateShown)
-		inputSource.ConfiguredName.Permissions = []string{characteristic.PermissionRead}
-
-		tv.Television.AddS(inputSource.S)
-		tv.A.AddS(inputSource.S)
-	}
+	attachInputs(ctx, &arcamClient, tv)
 
 	source, err := arcamClient.GetSource(ctx)
 	if err != nil {
 		log.Info.Fatalln("")
 	}
 	tv.Television.ActiveIdentifier.SetValue(int(source))
-	tv.Television.ActiveIdentifier.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
-		arcamClient.SetSource(ctx, arcam.InputSource(newVal))
-	})
+	tv.Television.ActiveIdentifier.OnValueUpdate(inputSelectionCallback(ctx, &arcamClient))
 
 	tv.Television.AddS(tv.Speaker.S)
 
@@ -152,16 +120,24 @@ func main() {
 
 	speakerVolume := characteristic.NewVolume()
 	speakerVolume.SetValue(vol)
-	speakerVolume.OnValueUpdate(func(newVal, oldVal int, r *http.Request) {
-		arcamClient.SetVolume(ctx, newVal)
-	})
+	speakerVolume.OnValueUpdate(speakerVolumeCallback(ctx, &arcamClient))
 	tv.Speaker.AddC(speakerVolume.C)
 
-	isMute, err := arcamClient.IsMuted(ctx)
-	tv.Speaker.Mute.SetValue(isMute)
-	tv.Speaker.Mute.OnValueUpdate(func(oldVal, newVal bool, r *http.Request) {
-		arcamClient.ToggleMute(ctx)
-	})
+	isMuted, err := arcamClient.IsMuted(ctx)
+	tv.Speaker.Mute.SetValue(isMuted)
+	tv.Speaker.Mute.OnValueUpdate(muteCallback(ctx, &arcamClient))
+
+	dimmer := service.NewLightbulb()
+	dimmer.On.SetValue(!isMuted)
+	dimmer.On.OnValueUpdate(muteCallback(ctx, &arcamClient))
+
+	brightness := characteristic.NewBrightness()
+	brightness.Description = "Volume"
+	brightness.SetValue(vol)
+	brightness.OnValueUpdate(brightnessVolCallback(ctx, &arcamClient))
+	dimmer.AddC(brightness.C)
+	tv.Television.AddS(dimmer.S)
+	tv.A.AddS(dimmer.S)
 
 	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A, tv.A)
 	if err != nil {
@@ -169,9 +145,9 @@ func main() {
 	}
 
 	s.Pin = cfg.Pin
-	s.Addr = "[::]:33859"
+	s.Addr = fmt.Sprintf("[::]:%d", cfg.ListenPort)
 
-	mylogger := syslog.New(os.Stdout, "ARCAM-HOMEKIT", syslog.LstdFlags|syslog.Lshortfile)
+	mylogger := syslog.New(os.Stdout, "ARCAM-HOMEKIT ", syslog.LstdFlags|syslog.Lshortfile)
 	log.Debug = &log.Logger{mylogger}
 
 	err = s.ListenAndServe(ctx)
