@@ -15,7 +15,7 @@ type intCallback func(int, int, *http.Request)
 type boolCallback func(oldVal, newVal bool, r *http.Request)
 
 func attachInputs(ctx context.Context, arcamClient *arcam.Receiver, tv *accessory.Television) {
-	for _, input := range arcamClient.GetAllInputs() {
+	for _, input := range arcamClient.GetInputs() {
 		inputSource := service.NewInputSource()
 
 		displayName := arcam.InputDisplayNameMap[input]
@@ -69,8 +69,11 @@ func speakerVolumeCallback(ctx context.Context, arcamClient *arcam.Receiver) int
 
 func muteCallback(ctx context.Context, arcamClient *arcam.Receiver) boolCallback {
 	return func(oldVal, newVal bool, r *http.Request) {
-		// TODO; this logic is wrong
-		arcamClient.ToggleMute(ctx)
+		if newVal {
+			arcamClient.Mute(ctx)
+		} else {
+			arcamClient.UnMute(ctx)
+		}
 	}
 }
 

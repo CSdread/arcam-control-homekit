@@ -4,30 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/brutella/hap/log"
 )
 
-var InputDisplayNameMap = map[InputSource]string{
-	InputCD:       "CD",
-	InputBD:       "BD",
-	InputAV:       "AV",
-	InputSAT:      "Sat",
-	InputPVR:      "PVR",
-	InputUHD:      "UHD",
-	InputAUX:      "Aux",
-	InputDISPLAY:  "Display",
-	InputTUNERFM:  "FM",
-	InputTUNERDAB: "DAB",
-	InputNET:      "Net",
-	InputSTB:      "STB",
-	InputGAME:     "Game",
-	InputBT:       "BT",
-}
+type EventHandler func(ZoneNumber, []byte) error
 
 type Receiver struct {
-	model  string
-	client *client
+	model     string
+	client    *client
+	connected bool
+
+	messages      chan *Response
+	eventHandlers map[Command]EventHandler
 }
 
+// NewReceiver creates and initializes a new receiver
 func NewReceiver(model string, ipAddress string, port int) (Receiver, error) {
 	if _, ok := ReceiverModels[model]; !ok {
 		return Receiver{}, errors.New(fmt.Sprintf("Invalid receiver model: %s", model))
@@ -35,12 +28,55 @@ func NewReceiver(model string, ipAddress string, port int) (Receiver, error) {
 
 	netClient := newClient(ipAddress, port)
 	return Receiver{
-		model:  model,
-		client: &netClient,
+		model:         model,
+		client:        &netClient,
+		connected:     false,
+		eventHandlers: map[Command]EventHandler{},
 	}, nil
 }
 
-func (r *Receiver) GetAllInputs() []InputSource {
+// RegisterEventHandler registers handler methods for responding to commands sent
+// from the receiver
+func (r *Receiver) RegisterEventHandler(command Command, handler EventHandler) {
+	r.eventHandlers[command] = handler
+}
+
+// Connect starts the connection to the receiver
+func (r *Receiver) Connect(ctx context.Context) error {
+	log.Debug.Println("connecting to receiver")
+	err := r.client.connect(ctx)
+	if err != nil {
+		return err
+	}
+
+	r.messages = make(chan *Response, 10)
+
+	log.Debug.Println("starting poll go routine")
+	go r.startPolling(ctx)
+
+	log.Debug.Println("starting message processor")
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case response, ok := <-r.messages:
+				if !ok {
+					return
+				}
+				r.processMessage(ctx, response)
+			}
+		}
+	}()
+
+	time.Sleep(10 * time.Second)
+
+	r.connected = true
+	return nil
+}
+
+// GetInputs retrieves all possible source inputs for the receiver
+func (r *Receiver) GetInputs() []InputSource {
 	sources := []InputSource{}
 	for k := range InputDisplayNameMap {
 		sources = append(sources, k)
@@ -48,35 +84,28 @@ func (r *Receiver) GetAllInputs() []InputSource {
 	return sources
 }
 
-func (r *Receiver) Connect(ctx context.Context) error {
-	fmt.Println("connecting to receiver")
-	return r.client.connect(ctx)
-}
-
-func (r *Receiver) IsOn(ctx context.Context) (bool, error) {
+func (r *Receiver) RefreshState(ctx context.Context) {
+	log.Debug.Println("trigering state refresh")
+	commands := []Command{
+		PowerCommand,
+		RequestCurrentSource,
+		SetRequestVolume,
+		RequestMuteStatus,
+	}
 	req := Request{
-		Zone:    ZoneOne,
-		Command: PowerCommand,
-		Data:    []byte{0xF0},
+		Zone: ZoneOne,
+		Data: []byte{0xF0},
 	}
-
-	err := r.client.send(req)
-	if err != nil {
-		return false, err
+	for _, command := range commands {
+		req.Command = command
+		err := r.client.send(req)
+		// need to take a second between requests
+		time.Sleep(1 * time.Second)
+		if err != nil {
+			// log failure but continue on
+			log.Debug.Printf("ERROR: refresh state request failed for %v", req.Command)
+		}
 	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return false, errors.New("")
-	}
-
-	isOn := int(resp.Data[0]) == 0x01
-
-	return isOn, nil
 }
 
 func (r *Receiver) PowerOn(ctx context.Context) error {
@@ -86,21 +115,7 @@ func (r *Receiver) PowerOn(ctx context.Context) error {
 		Data:    []byte{PowerOn.Data1, PowerOn.Data2},
 	}
 
-	err := r.client.send(req)
-	if err != nil {
-		return err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return errors.New("")
-	}
-
-	return nil
+	return r.client.send(req)
 }
 
 func (r *Receiver) PowerOff(ctx context.Context) error {
@@ -109,33 +124,11 @@ func (r *Receiver) PowerOff(ctx context.Context) error {
 		Command: SimulateRC5IRCommand,
 		Data:    []byte{PowerOff.Data1, PowerOff.Data2},
 	}
-	err := r.client.send(req)
-	if err != nil {
-		return err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return errors.New("")
-	}
-
-	return nil
+	return r.client.send(req)
 }
 
-func (r *Receiver) ToggleMute(ctx context.Context) error {
-	muted, err := r.IsMuted(ctx)
-	if err != nil {
-		return err
-	}
-
-	data := []byte{MuteOn.Data1, MuteOn.Data2}
-	if muted {
-		data = []byte{MuteOff.Data1, MuteOff.Data2}
-	}
+func (r *Receiver) UnMute(ctx context.Context) error {
+	data := []byte{MuteOff.Data1, MuteOff.Data2}
 
 	req := Request{
 		Zone:    ZoneOne,
@@ -143,88 +136,23 @@ func (r *Receiver) ToggleMute(ctx context.Context) error {
 		Data:    data,
 	}
 
-	err = r.client.send(req)
-	if err != nil {
-		return err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return errors.New("")
-	}
-
-	return nil
-}
-func (r *Receiver) IsMuted(ctx context.Context) (bool, error) {
-	req := Request{
-		Zone:    ZoneOne,
-		Command: RequestMuteStatus,
-		Data:    []byte{0xF0},
-	}
-
-	err := r.client.send(req)
-	if err != nil {
-		return false, err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return false, errors.New("")
-	}
-
-	return resp.Data[0] == 0x00, nil
+	return r.client.send(req)
 }
 
-func (r *Receiver) GetSource(ctx context.Context) (InputSource, error) {
+func (r *Receiver) Mute(ctx context.Context) error {
+	data := []byte{MuteOn.Data1, MuteOn.Data2}
+
 	req := Request{
 		Zone:    ZoneOne,
-		Command: RequestCurrentSource,
-		Data:    []byte{0xF0},
+		Command: SimulateRC5IRCommand,
+		Data:    data,
 	}
 
-	err := r.client.send(req)
-	if err != nil {
-		return 0x00, err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return 0x00, err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return 0x00, errors.New("")
-	}
-
-	input := InputSource(resp.Data[0])
-	return input, nil
+	return r.client.send(req)
 }
 
 func (r *Receiver) SetSource(ctx context.Context, source InputSource) error {
-	data, ok := map[InputSource]AVRC5CommandCode{
-		InputCD:       CD,
-		InputBD:       BD,
-		InputAV:       AV,
-		InputSAT:      Sat,
-		InputPVR:      PVR,
-		InputUHD:      UHD,
-		InputAUX:      Aux,
-		InputDISPLAY:  Display,
-		InputTUNERFM:  FM,
-		InputTUNERDAB: DAB,
-		InputNET:      Net,
-		InputSTB:      STB,
-		InputGAME:     Game,
-		InputBT:       BT,
-	}[source]
+	data, ok := InputSourceCommandMap[source]
 	if !ok {
 		return errors.New("Invalid Input Source")
 	}
@@ -235,49 +163,7 @@ func (r *Receiver) SetSource(ctx context.Context, source InputSource) error {
 		Data:    []byte{data.Data1, data.Data2},
 	}
 
-	err := r.client.send(req)
-	if err != nil {
-		return err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return errors.New("")
-	}
-
-	return nil
-}
-
-func (r *Receiver) GetVolume(ctx context.Context) (int, error) {
-	req := Request{
-		Zone:    ZoneOne,
-		Command: SetRequestVolume,
-		Data:    []byte{0xF0},
-	}
-
-	err := r.client.send(req)
-	if err != nil {
-		return -1, err
-	}
-
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return -1, err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return -1, errors.New(fmt.Sprintf("Failed to retrieve current volume: %x", resp.AnswerCode))
-	}
-
-	if len(resp.Data) != 1 {
-		return -1, errors.New(fmt.Sprintf("Invalid response data: %s", resp.Data))
-	}
-
-	return int(resp.Data[0]), nil
+	return r.client.send(req)
 }
 
 func (r *Receiver) SetVolume(ctx context.Context, newVolume int) error {
@@ -287,23 +173,31 @@ func (r *Receiver) SetVolume(ctx context.Context, newVolume int) error {
 		Data:    []byte{byte(newVolume)},
 	}
 
-	err := r.client.send(req)
-	if err != nil {
-		return err
+	return r.client.send(req)
+}
+
+func (r *Receiver) startPolling(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(r.messages)
+			return
+		default:
+			message, err := r.client.read(ctx)
+			if err != nil {
+				log.Debug.Fatalln("error reading from socket")
+			}
+			r.messages <- message
+		}
+	}
+}
+
+func (r *Receiver) processMessage(ctx context.Context, message *Response) error {
+	if handler, ok := r.eventHandlers[message.CommandCode]; ok {
+		return handler(message.Zone, message.Data)
 	}
 
-	resp, err := r.client.read(ctx)
-	if err != nil {
-		return err
-	}
-
-	if resp.AnswerCode != StatusUpdate {
-		return errors.New(fmt.Sprintf("Invalid answer code: %x", resp.AnswerCode))
-	}
-
-	if int(resp.Data[0]) != newVolume {
-		return errors.New("New volume failed to set")
-	}
-
+	// if we dont have a handler for the Command then we no-op,
+	// its a message we dont care about
 	return nil
 }

@@ -24,6 +24,20 @@ const (
 	ZoneTwo            = 2
 )
 
+type PowerStatus int
+
+const (
+	PowerStatusActive    PowerStatus = 0x01
+	PowerStatusNotActive PowerStatus = 0x00
+)
+
+type MuteState int
+
+const (
+	MuteStateMuted    MuteState = 0x00
+	MuteStateNotMuted MuteState = 0x01
+)
+
 type Command byte
 
 const (
@@ -260,4 +274,38 @@ type Request struct {
 	Zone    ZoneNumber
 	Command Command
 	Data    []byte
+}
+
+var InputDisplayNameMap = map[InputSource]string{
+	InputCD:       "CD",
+	InputBD:       "BD",
+	InputAV:       "AV",
+	InputSAT:      "Sat",
+	InputPVR:      "PVR",
+	InputUHD:      "UHD",
+	InputAUX:      "Aux",
+	InputDISPLAY:  "Display",
+	InputTUNERFM:  "FM",
+	InputTUNERDAB: "DAB",
+	InputNET:      "Net",
+	InputSTB:      "STB",
+	InputGAME:     "Game",
+	InputBT:       "BT",
+}
+
+var InputSourceCommandMap = map[InputSource]AVRC5CommandCode{
+	InputCD:       CD,
+	InputBD:       BD,
+	InputAV:       AV,
+	InputSAT:      Sat,
+	InputPVR:      PVR,
+	InputUHD:      UHD,
+	InputAUX:      Aux,
+	InputDISPLAY:  Display,
+	InputTUNERFM:  FM,
+	InputTUNERDAB: DAB,
+	InputNET:      Net,
+	InputSTB:      STB,
+	InputGAME:     Game,
+	InputBT:       BT,
 }
