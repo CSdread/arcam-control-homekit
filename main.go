@@ -7,8 +7,6 @@ import (
 	"os"
 
 	"github.com/brutella/hap"
-	"github.com/brutella/hap/accessory"
-	"github.com/brutella/hap/characteristic"
 	"github.com/brutella/hap/log"
 
 	"flag"
@@ -53,7 +51,7 @@ func main() {
 
 	arcamClient, err := arcam.NewReceiver(cfg.Model, cfg.IP, cfg.Port)
 	if err != nil {
-		log.Debug.Fatalln("")
+		log.Debug.Fatalln("Unable to create new receiver: %s", err)
 	}
 
 	c := make(chan os.Signal)
@@ -69,88 +67,31 @@ func main() {
 
 	err = arcamClient.Connect(ctx)
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Debug.Fatalf("Could not connect to receiver: %s", err)
 	}
 
-	// create homekit resources
-	bridge := accessory.NewBridge(accessory.Info{
-		Name:         "ARCAM Receiver Bridge",
-		SerialNumber: Version,
-		Model:        "ARCAM Receiver Bridge",
-		Manufacturer: "CSdread",
-	})
+	// gather inputs
+	sources := []Source{}
+	for _, input := range arcamClient.GetInputs() {
+		source := Source{name: byte(input), displayName: arcam.InputDisplayNameMap[input]}
+		sources = append(sources, source)
+	}
 
-	tv := accessory.NewTelevision(accessory.Info{
-		Name:         "ARCAM Receiver",
-		SerialNumber: Version,
-		Model:        cfg.Model,
-		Manufacturer: "Arcam",
-	})
-	tv.Television.ConfiguredName.SetValue("Arcam Receiver")
-	tv.Television.SleepDiscoveryMode.SetValue(characteristic.SleepDiscoveryModeAlwaysDiscoverable)
-	attachInputs(ctx, &arcamClient, tv)
-	tv.Television.Active.OnValueUpdate(powerOnCallback(ctx, &arcamClient))
-	tv.Television.ActiveIdentifier.OnValueUpdate(inputSelectionCallback(ctx, &arcamClient))
-	/*
-		dimmer := service.NewLightbulb()
-		brightness := characteristic.NewBrightness()
-		brightness.Description = "Volume"
-		dimmer.AddC(brightness.C)
-		tv.Television.AddS(dimmer.S)
-		tv.A.AddS(dimmer.S)
+	homekitReceiver := NewHomekitReceiver(ctx, cfg.Model, sources)
 
-		tv.Television.AddS(tv.Speaker.S)
+	// Register homekit callbacks
+	homekitReceiver.RegisterPowerCallback(powerCallback(ctx, arcamClient))
+	homekitReceiver.RegisterSourceCallback(sourceCallback(ctx, arcamClient))
 
-		speakerActive := characteristic.NewActive()
-		speakerActive.SetValue(characteristic.ActiveActive)
-		tv.Speaker.AddC(speakerActive.C)
+	// Register Arcam callbacks
+	arcamClient.RegisterEventHandler(arcam.PowerCommand, powerCommandCallback(homekitReceiver))
+	arcamClient.RegisterEventHandler(arcam.RequestCurrentSource, requestCurrentSourceCallback(homekitReceiver))
 
-		speakerVolControlType := characteristic.NewVolumeControlType()
-		speakerVolControlType.SetValue(characteristic.VolumeControlTypeAbsolute)
-		tv.Speaker.AddC(speakerVolControlType.C)
-
-		speakerVolume := characteristic.NewVolume()
-		tv.Speaker.AddC(speakerVolume.C)
-
-		// Register event handlers for updates originating from homekit
-		brightness.OnValueUpdate(brightnessVolCallback(ctx, &arcamClient))
-		dimmer.On.OnValueUpdate(muteCallback(ctx, &arcamClient))
-		tv.Speaker.Mute.OnValueUpdate(muteCallback(ctx, &arcamClient))
-		speakerVolume.OnValueUpdate(speakerVolumeCallback(ctx, &arcamClient))
-
-		// Register event handlers for updates originating from the Receiver
-	*/
-	arcamClient.RegisterEventHandler(arcam.PowerCommand, func(zone arcam.ZoneNumber, data []byte) error {
-		active := characteristic.ActiveInactive
-		if arcam.PowerStatus(data[0]) == arcam.PowerStatusActive {
-			active = characteristic.ActiveActive
-		}
-		return tv.Television.Active.SetValue(active)
-	})
-	arcamClient.RegisterEventHandler(arcam.RequestCurrentSource, func(zone arcam.ZoneNumber, data []byte) error {
-		return tv.Television.ActiveIdentifier.SetValue(int(data[0]))
-	})
-	/*
-		arcamClient.RegisterEventHandler(arcam.RequestMuteStatus, func(zone arcam.ZoneNumber, data []byte) error {
-			isMuted := arcam.MuteState(data[0]) == arcam.MuteStateMuted
-			tv.Speaker.Mute.SetValue(isMuted)
-			dimmer.On.SetValue(isMuted)
-
-			return nil
-		})
-
-		arcamClient.RegisterEventHandler(arcam.SetRequestVolume, func(zone arcam.ZoneNumber, data []byte) error {
-			err := speakerVolume.SetValue(int(data[0]))
-			if err != nil {
-				return err
-			}
-			return brightness.SetValue(int(data[0]))
-		})
-	*/
+	// initial state
 	arcamClient.RefreshState(ctx)
 
-	s, err := hap.NewServer(hap.NewFsStore("./db"), bridge.A, tv.A)
+	// create HAP server
+	s, err := hap.NewServer(hap.NewFsStore("./db"), homekitReceiver.Bridge.A, homekitReceiver.Tv.A)
 	if err != nil {
 		log.Info.Panic(err)
 	}
