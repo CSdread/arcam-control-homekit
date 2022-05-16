@@ -4,11 +4,18 @@ build:
 build-linux:
 	GOOS=linux GOARCH=386 go build
 
-build-docker:
-	docker build -t csdread/arcam-controller:2 .
+build-docker: check-tag
+	docker build -t csdread/arcam-controller:$(TAG) .
 
-push:
-	docker push csdread/arcam-controller:2
+push: check-tag
+	docker push csdread/arcam-controller:$(TAG)
+
+ci: build-linux build-docker push
 
 clean:
 	rm -rf arcam-controller
+
+check-tag:
+ifndef TAG
+	$(error TAG is undefined)
+endif
