@@ -82,10 +82,14 @@ func main() {
 	// Register homekit callbacks
 	homekitReceiver.RegisterPowerCallback(powerCallback(ctx, arcamClient))
 	homekitReceiver.RegisterSourceCallback(sourceCallback(ctx, arcamClient))
+	homekitReceiver.RegisterMuteCallback(muteCallback(ctx, arcamClient))
+	homekitReceiver.RegisterVolumeCallback(volumeCallback(ctx, arcamClient))
 
 	// Register Arcam callbacks
 	arcamClient.RegisterEventHandler(arcam.PowerCommand, powerCommandCallback(homekitReceiver))
 	arcamClient.RegisterEventHandler(arcam.RequestCurrentSource, requestCurrentSourceCallback(homekitReceiver))
+	arcamClient.RegisterEventHandler(arcam.SetRequestVolume, volumeCommandCallback(homekitReceiver))
+	arcamClient.RegisterEventHandler(arcam.RequestMuteStatus, muteCommandCallback(homekitReceiver))
 
 	// initial state
 	arcamClient.RefreshState(ctx)

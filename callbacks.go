@@ -25,6 +25,44 @@ func powerCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []by
 	}
 }
 
+func muteCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []byte) error {
+	return func(zone arcam.ZoneNumber, data []byte) error {
+		isMuted := arcam.MuteState(data[0]) == arcam.MuteStateMuted
+		receiver.SetMute(isMuted)
+		return nil
+	}
+}
+
+func volumeCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []byte) error {
+	return func(zone arcam.ZoneNumber, data []byte) error {
+		return receiver.SetVolume(int(data[0]))
+	}
+}
+
+func muteCallback(ctx context.Context, arcamClient arcam.Receiver) boolCallback {
+	return func(newVal, oldVal bool, r *http.Request) {
+		var err error
+		if newVal {
+			err = arcamClient.Mute(ctx)
+		} else {
+			err = arcamClient.UnMute(ctx)
+		}
+
+		if err != nil {
+			log.Info.Fatalln("")
+		}
+	}
+}
+
+func volumeCallback(ctx context.Context, arcamClient arcam.Receiver) intCallback {
+	return func(newVal, oldVal int, r *http.Request) {
+		err := arcamClient.SetVolume(ctx, newVal)
+		if err != nil {
+			log.Info.Fatalln("")
+		}
+	}
+}
+
 func powerCallback(ctx context.Context, arcamClient arcam.Receiver) intCallback {
 	return func(newVal, oldVal int, r *http.Request) {
 		if newVal == characteristic.ActiveActive {

@@ -20,6 +20,9 @@ type HomekitReceiver struct {
 
 	Bridge *accessory.Bridge
 	Tv     *accessory.Television
+
+	dimmer     *service.Lightbulb
+	brightness *characteristic.Brightness
 }
 
 type intCallback func(int, int, *http.Request)
@@ -58,6 +61,22 @@ func (r *HomekitReceiver) init(ctx context.Context) {
 		r.Tv.Television.AddS(inputSource.S)
 		r.Tv.A.AddS(inputSource.S)
 	}
+
+	r.dimmer = service.NewLightbulb()
+	r.brightness = characteristic.NewBrightness()
+	r.brightness.Description = "Volume"
+	r.dimmer.AddC(r.brightness.C)
+	r.Tv.Television.AddS(r.dimmer.S)
+	r.Tv.A.AddS(r.dimmer.S)
+}
+
+func (r *HomekitReceiver) SetVolume(volume int) error {
+	return r.brightness.SetValue(volume)
+}
+
+func (r *HomekitReceiver) SetMute(isMuted bool) error {
+	r.dimmer.On.SetValue(isMuted)
+	return nil
 }
 
 func (r *HomekitReceiver) SetSource(source int) error {
@@ -68,8 +87,16 @@ func (r *HomekitReceiver) SetPowerState(state int) error {
 	return r.Tv.Television.Active.SetValue(state)
 }
 
+func (r *HomekitReceiver) RegisterVolumeCallback(callback intCallback) {
+	r.brightness.OnValueUpdate(callback)
+}
+
 func (r *HomekitReceiver) RegisterPowerCallback(callback intCallback) {
 	r.Tv.Television.Active.OnValueUpdate(callback)
+}
+
+func (r *HomekitReceiver) RegisterMuteCallback(callback boolCallback) {
+	r.dimmer.On.OnValueUpdate(callback)
 }
 
 func (r *HomekitReceiver) RegisterSourceCallback(callback intCallback) {
