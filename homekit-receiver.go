@@ -21,8 +21,9 @@ type HomekitReceiver struct {
 	Bridge *accessory.Bridge
 	Tv     *accessory.Television
 
-	dimmer     *service.Lightbulb
-	brightness *characteristic.Brightness
+	dimmer           *service.Lightbulb
+	brightness       *characteristic.Brightness
+	directModeSwitch *service.Switch
 }
 
 type intCallback func(int, int, *http.Request)
@@ -68,6 +69,15 @@ func (r *HomekitReceiver) init(ctx context.Context) {
 	r.dimmer.AddC(r.brightness.C)
 	r.Tv.Television.AddS(r.dimmer.S)
 	r.Tv.A.AddS(r.dimmer.S)
+
+	r.directModeSwitch = service.NewSwitch()
+	r.Tv.Television.AddS(r.directModeSwitch.S)
+	r.Tv.A.AddS(r.directModeSwitch.S)
+}
+
+func (r *HomekitReceiver) SetDirectMode(isDirectMode bool) error {
+	r.directModeSwitch.On.SetValue(isDirectMode)
+	return nil
 }
 
 func (r *HomekitReceiver) SetVolume(volume int) error {
@@ -85,6 +95,10 @@ func (r *HomekitReceiver) SetSource(source int) error {
 
 func (r *HomekitReceiver) SetPowerState(state int) error {
 	return r.Tv.Television.Active.SetValue(state)
+}
+
+func (r *HomekitReceiver) RegisterDirectModeCallback(callback boolCallback) {
+	r.directModeSwitch.On.OnValueUpdate(callback)
 }
 
 func (r *HomekitReceiver) RegisterVolumeCallback(callback intCallback) {
