@@ -31,6 +31,13 @@ const (
 	PowerStatusNotActive PowerStatus = 0x00
 )
 
+type DirectModeStatus int
+
+const (
+	DirectModeActive    DirectModeStatus = 0x01
+	DirectModeNotActive DirectModeStatus = 0x00
+)
+
 type MuteState int
 
 const (

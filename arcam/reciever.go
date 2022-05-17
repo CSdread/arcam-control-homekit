@@ -91,6 +91,7 @@ func (r *Receiver) RefreshState(ctx context.Context) {
 		RequestCurrentSource,
 		SetRequestVolume,
 		RequestMuteStatus,
+		RequestDirectModeStatus,
 	}
 	req := Request{
 		Zone: ZoneOne,
@@ -124,6 +125,30 @@ func (r *Receiver) PowerOff(ctx context.Context) error {
 		Command: SimulateRC5IRCommand,
 		Data:    []byte{PowerOff.Data1, PowerOff.Data2},
 	}
+	return r.client.send(req)
+}
+
+func (r *Receiver) EnableDirectMode(ctx context.Context) error {
+	data := []byte{DirectModeOn.Data1, DirectModeOn.Data2}
+
+	req := Request{
+		Zone:    ZoneOne,
+		Command: SimulateRC5IRCommand,
+		Data:    data,
+	}
+
+	return r.client.send(req)
+}
+
+func (r *Receiver) DisableDirectMode(ctx context.Context) error {
+	data := []byte{DirectModeOff.Data1, DirectModeOff.Data2}
+
+	req := Request{
+		Zone:    ZoneOne,
+		Command: SimulateRC5IRCommand,
+		Data:    data,
+	}
+
 	return r.client.send(req)
 }
 

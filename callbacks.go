@@ -33,9 +33,31 @@ func muteCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []byt
 	}
 }
 
+func directModeCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []byte) error {
+	return func(zone arcam.ZoneNumber, data []byte) error {
+		enable := arcam.DirectModeStatus(data[0]) == arcam.DirectModeActive
+		return receiver.SetDirectMode(enable)
+	}
+}
+
 func volumeCommandCallback(receiver *HomekitReceiver) func(arcam.ZoneNumber, []byte) error {
 	return func(zone arcam.ZoneNumber, data []byte) error {
 		return receiver.SetVolume(int(data[0]))
+	}
+}
+
+func directModeStatusCallback(ctx context.Context, arcamClient arcam.Receiver) boolCallback {
+	return func(newVal, oldVal bool, r *http.Request) {
+		var err error
+		if newVal {
+			err = arcamClient.EnableDirectMode(ctx)
+		} else {
+			err = arcamClient.DisableDirectMode(ctx)
+		}
+
+		if err != nil {
+			log.Info.Fatalln("")
+		}
 	}
 }
 
