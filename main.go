@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/brutella/hap"
 	"github.com/brutella/hap/log"
@@ -65,9 +66,19 @@ func main() {
 		cancel()
 	}()
 
-	err = arcamClient.Connect(ctx)
-	if err != nil {
-		log.Debug.Fatalf("Could not connect to receiver: %s", err)
+	// retry connection till successful, sleep between with backoff
+	var increment time.Duration = 1
+	for {
+		err = arcamClient.Connect(ctx)
+		if err == nil {
+			break
+		}
+
+		log.Info.Printf("Could not connect to receiver: %s", err)
+		log.Info.Printf("Sleeping for %d seconds", increment)
+
+		time.Sleep(increment * time.Second)
+		increment = increment * 2
 	}
 
 	// gather inputs
