@@ -284,9 +284,9 @@ type Request struct {
 }
 
 var InputDisplayNameMap = map[InputSource]string{
-	InputCD:       "CD",
+	InputCD:       "Turntable",
 	InputBD:       "BD",
-	InputAV:       "AV",
+	InputAV:       "PS5",
 	InputSAT:      "Sat",
 	InputPVR:      "PVR",
 	InputUHD:      "UHD",
@@ -295,7 +295,7 @@ var InputDisplayNameMap = map[InputSource]string{
 	InputTUNERFM:  "FM",
 	InputTUNERDAB: "DAB",
 	InputNET:      "Net",
-	InputSTB:      "STB",
+	InputSTB:      "AppleTV",
 	InputGAME:     "Game",
 	InputBT:       "BT",
 }

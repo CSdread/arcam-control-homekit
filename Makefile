@@ -5,7 +5,7 @@ build-linux:
 	GOOS=linux GOARCH=386 go build
 
 build-docker: check-tag
-	docker build -t csdread/arcam-controller:$(TAG) .
+	docker build --platform linux/amd64 -t csdread/arcam-controller:$(TAG) .
 
 push: check-tag
 	docker push csdread/arcam-controller:$(TAG)
